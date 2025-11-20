@@ -1,7 +1,9 @@
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404, redirect
 from datetime import date, timedelta
 from django.db.models import Count
-from .models import *
+
+# Explicit imports are clearer and avoid wildcard-import issues
+from .models import Customer, Interaction
 
 def index(request):
     customers = Customer.objects.all()
@@ -22,14 +24,51 @@ def create_customer(request):
 
 def summary(request):
     thirty_days_ago = date.today() - timedelta(days=30)
-    interactions = Interaction.objects.filter(interaction_date__gte=thirty_days_ago)
+    interactions_qs = Interaction.objects.filter(interaction_date__gte=thirty_days_ago)
 
-    count = len(interactions)
-    interactions = interactions.values("channel","direction").annotate(count=Count('channel'))
+    # total count
+    count = interactions_qs.count()
+
+    # group by channel and direction
+    interactions = interactions_qs.values("channel", "direction").annotate(count=Count("channel"))
     context={
                 "interactions":interactions,
                 "count":count
              }
 
     return render(request,"summary.html",context=context)
+
+
+def interact(request, cid):
+    """Minimal interact view: shows choices on GET; creates Interaction on POST."""
+    customer = get_object_or_404(Customer, id=cid)
+
+    channels = Interaction.CHANNEL_CHOICES
+    directions = Interaction.DIRECTION_CHOICES
+
+    msg = ""
+    if request.method == "POST":
+        channel = request.POST.get("channel")
+        direction = request.POST.get("direction")
+        summary_text = request.POST.get("summary", "")
+
+        if not channel or not direction:
+            msg = "Please select both channel and direction."
+        else:
+            Interaction.objects.create(
+                customer=customer,
+                channel=channel,
+                direction=direction,
+                summary=summary_text,
+            )
+            # Post/Redirect/Get
+            return redirect('interact', cid=cid)
+
+    context = {
+        "customer": customer,
+        "channels": channels,
+        "directions": directions,
+        "msg": msg,
+    }
+    return render(request, "interact.html", context=context)
 

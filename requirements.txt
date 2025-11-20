@@ -1,0 +1,8 @@
+
+# Core framework
+Django==5.2.8
+
+# Production WSGI server and static file helper
+gunicorn>=20.1.0
+whitenoise>=6.5.0
+
